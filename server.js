@@ -176,7 +176,7 @@ function makeExplosion(state, x, y, radius, hitSlot = null) {
     state.scores[winner] += 1;
     state.roundWinner = winner;
     state.roundMessage = `Player ${winner + 1} scores!`;
-    state.activePlayer = winner;
+    // Don't carry winner advantage — random start each round
 
     if (state.scores[winner] >= MATCH_TARGET) {
       state.matchWinner = winner;
