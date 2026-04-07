@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gorillas</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="hud">
+        <div class="titleblock">
+          <h1>GORILLAS</h1>
+          <p class="subtitle">LAN banana artillery</p>
+        </div>
+        <div class="scoreboard" id="scoreboard">
+          <div class="scorecard" data-player="1">
+            <span class="label">P1</span>
+            <span class="value" id="score-p1">0</span>
+          </div>
+          <div class="scorecard" data-player="2">
+            <span class="label">P2</span>
+            <span class="value" id="score-p2">0</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="game-layout">
+        <section class="canvas-panel">
+          <canvas id="game" width="960" height="540"></canvas>
+          <div class="statusbar">
+            <span id="connection">Connecting...</span>
+            <span id="status">Waiting for server...</span>
+          </div>
+        </section>
+
+        <aside class="controls">
+          <div class="panel">
+            <h2>Controls</h2>
+            <p id="player-slot">Joining match...</p>
+            <label>
+              Angle
+              <input id="angle" type="range" min="5" max="85" value="45" />
+              <span id="angle-value">45°</span>
+            </label>
+            <label>
+              Power
+              <input id="power" type="range" min="10" max="100" value="52" />
+              <span id="power-value">52</span>
+            </label>
+            <button id="throw">Throw Banana</button>
+            <button id="restart" class="secondary">New Match</button>
+          </div>
+
+          <div class="panel">
+            <h2>Round Info</h2>
+            <div class="stat-row">
+              <span>Wind</span>
+              <strong id="wind">0.000</strong>
+            </div>
+            <div class="stat-row">
+              <span>Turn</span>
+              <strong id="turn">-</strong>
+            </div>
+            <div class="stat-row">
+              <span>Goal</span>
+              <strong>First to 3</strong>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>How To Play</h2>
+            <p>Two players on the same network join the same server.</p>
+            <p>Adjust angle and power, then arc bananas across the skyline.</p>
+            <p>Wind shifts every turn, and explosions carve holes through buildings.</p>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="/game.js"></script>
+  </body>
+  </html>

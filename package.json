@@ -1,0 +1,12 @@
+{
+  "name": "gorillas-clone",
+  "version": "1.0.0",
+  "description": "Web-based multiplayer Gorillas clone",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
