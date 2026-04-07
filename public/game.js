@@ -258,6 +258,13 @@ function drawGorilla(gorilla, activePlayer) {
   ctx.moveTo(12 * facing, -6);
   ctx.lineTo((12 + 8) * facing, 8);
   ctx.stroke();
+
+  // Player label above head
+  const label = gorilla.slot === 0 ? "P1" : "P2";
+  ctx.fillStyle = isActive ? "#ffe27a" : "#93a0c4";
+  ctx.font = "bold 14px Courier New";
+  ctx.textAlign = "center";
+  ctx.fillText(label, 0, -28);
   ctx.restore();
 }
 
