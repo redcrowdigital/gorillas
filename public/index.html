@@ -5,6 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gorillas</title>
     <link rel="stylesheet" href="/style.css" />
+    <style>
+      .canvas-panel {
+        position: relative;
+      }
+
+      .name-modal {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(4, 6, 12, 0.78);
+        z-index: 2;
+      }
+
+      .name-modal.visible {
+        display: flex;
+      }
+
+      .name-dialog {
+        width: min(360px, 100%);
+        padding: 20px;
+        border: 2px solid #2f3d61;
+        background: linear-gradient(180deg, rgba(18, 21, 35, 0.98), rgba(8, 10, 18, 0.98));
+        box-shadow:
+          0 18px 36px rgba(0, 0, 0, 0.42),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+      }
+
+      .name-dialog h2 {
+        margin: 0 0 14px;
+        color: #ffd27a;
+        font-size: 1rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .name-dialog p {
+        margin: 0 0 12px;
+        color: #93a0c4;
+        line-height: 1.45;
+      }
+
+      .name-dialog input {
+        width: 100%;
+        margin: 0 0 12px;
+        padding: 12px 14px;
+        border: 2px solid #2f3d61;
+        background: #0d1120;
+        color: #f0e6c8;
+        font: inherit;
+      }
+
+      .name-dialog button {
+        margin-bottom: 0;
+      }
+    </style>
   </head>
   <body>
     <div class="shell">
@@ -15,11 +73,11 @@
         </div>
         <div class="scoreboard" id="scoreboard">
           <div class="scorecard" data-player="1">
-            <span class="label">P1</span>
+            <span class="label">Player 1</span>
             <span class="value" id="score-p1">0</span>
           </div>
           <div class="scorecard" data-player="2">
-            <span class="label">P2</span>
+            <span class="label">Player 2</span>
             <span class="value" id="score-p2">0</span>
           </div>
         </div>
@@ -28,6 +86,14 @@
       <main class="game-layout">
         <section class="canvas-panel">
           <canvas id="game" width="960" height="540"></canvas>
+          <div class="name-modal" id="name-modal">
+            <form class="name-dialog" id="name-form">
+              <h2>Enter your name</h2>
+              <p>Name shown to both players. Maximum 12 characters.</p>
+              <input id="name-input" type="text" maxlength="12" autocomplete="off" />
+              <button type="submit" id="name-ready">Ready</button>
+            </form>
+          </div>
           <div class="statusbar">
             <span id="connection">Connecting...</span>
             <span id="status">Waiting for server...</span>

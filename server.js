@@ -9,9 +9,11 @@ const TICK_MS = 1000 / 60;
 const ARENA_WIDTH = 960;
 const ARENA_HEIGHT = 540;
 const GRAVITY = 0.18;
-const WIND_ACCEL = 0.015;
+const WIND_ACCEL = 0.06;
 const MAX_PLAYERS = 2;
 const MATCH_TARGET = 3;
+const MAX_NAME_LENGTH = 12;
+const MAX_WIND = 0.5;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -34,6 +36,20 @@ function randInt(min, max) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function defaultPlayerName(slot) {
+  return `Player ${slot + 1}`;
+}
+
+function sanitizePlayerName(value, slot) {
+  const fallback = defaultPlayerName(slot);
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const trimmed = value.trim().slice(0, MAX_NAME_LENGTH);
+  return trimmed || fallback;
 }
 
 function distanceSquared(a, b) {
@@ -173,25 +189,26 @@ function makeExplosion(state, x, y, radius, hitSlot = null) {
   if (victim !== null) {
     state.gorillas[victim].alive = false;
     const winner = victim === 0 ? 1 : 0;
+    const winnerName = getPlayerName(winner);
     state.scores[winner] += 1;
     state.roundWinner = winner;
-    state.roundMessage = `Player ${winner + 1} scores!`;
+    state.roundMessage = `${winnerName} scores!`;
     // Don't carry winner advantage — random start each round
 
     if (state.scores[winner] >= MATCH_TARGET) {
       state.matchWinner = winner;
       state.phase = "matchOver";
-      state.status = `Player ${winner + 1} wins the match! Press New Match.`;
+      state.status = `${winnerName} wins the match! Press New Match.`;
     } else {
       state.phase = "roundOver";
-      state.status = `Player ${winner + 1} won the round. New skyline in a moment...`;
+      state.status = `${winnerName} won the round. New skyline in a moment...`;
       state.nextRoundAt = Date.now() + 2200;
     }
   } else {
     state.activePlayer = state.activePlayer === 0 ? 1 : 0;
-    state.wind = parseFloat(rand(-0.18, 0.18).toFixed(3));
+    state.wind = parseFloat(rand(-MAX_WIND, MAX_WIND).toFixed(3));
     state.phase = "aiming";
-    state.status = `Player ${state.activePlayer + 1}'s turn`;
+    state.status = `${getPlayerName(state.activePlayer)}'s turn`;
   }
 }
 
@@ -215,8 +232,8 @@ function createFreshRound(state, keepScores = true) {
   state.roundWinner = null;
   state.matchWinner = null;
   state.nextRoundAt = null;
-  state.wind = parseFloat(rand(-0.18, 0.18).toFixed(3));
-  state.status = `Player ${state.activePlayer + 1}'s turn`;
+  state.wind = parseFloat(rand(-MAX_WIND, MAX_WIND).toFixed(3));
+  state.status = `${getPlayerName(state.activePlayer)}'s turn`;
   if (!keepScores) {
     state.scores = [0, 0];
   }
@@ -247,6 +264,29 @@ function createInitialState() {
 
 const game = createInitialState();
 const clients = new Map();
+const playerNames = Array.from({ length: MAX_PLAYERS }, (_, slot) => defaultPlayerName(slot));
+
+function getPlayerName(slot) {
+  return playerNames[slot] || defaultPlayerName(slot);
+}
+
+function refreshStatusText() {
+  if (game.phase === "aiming") {
+    game.status = `${getPlayerName(game.activePlayer)}'s turn`;
+    return;
+  }
+
+  if (game.phase === "roundOver" && game.roundWinner !== null) {
+    game.roundMessage = `${getPlayerName(game.roundWinner)} scores!`;
+    game.status = `${getPlayerName(game.roundWinner)} won the round. New skyline in a moment...`;
+    return;
+  }
+
+  if (game.phase === "matchOver" && game.matchWinner !== null) {
+    game.roundMessage = `${getPlayerName(game.matchWinner)} scores!`;
+    game.status = `${getPlayerName(game.matchWinner)} wins the match! Press New Match.`;
+  }
+}
 
 function serializeState() {
   return {
@@ -256,7 +296,7 @@ function serializeState() {
       return {
         slot,
         connected: Boolean(entry),
-        name: `Player ${slot + 1}`
+        name: getPlayerName(slot)
       };
     }),
     game
@@ -301,7 +341,7 @@ function startMatch() {
   game.activePlayer = Math.random() > 0.5 ? 0 : 1;
   createFreshRound(game, false);
   game.phase = "aiming";
-  game.status = `Player ${game.activePlayer + 1}'s turn`;
+  game.status = `${getPlayerName(game.activePlayer)}'s turn`;
 }
 
 function maybeStartWhenReady() {
@@ -379,9 +419,9 @@ function updateProjectile() {
   if (banana.x < -60 || banana.x > ARENA_WIDTH + 60 || banana.y > ARENA_HEIGHT + 60 || banana.y < -120) {
     game.banana = null;
     game.activePlayer = game.activePlayer === 0 ? 1 : 0;
-    game.wind = parseFloat(rand(-0.18, 0.18).toFixed(3));
+    game.wind = parseFloat(rand(-MAX_WIND, MAX_WIND).toFixed(3));
     game.phase = "aiming";
-    game.status = `Missed. Player ${game.activePlayer + 1}'s turn`;
+    game.status = `Missed. ${getPlayerName(game.activePlayer)}'s turn`;
   }
 }
 
@@ -450,9 +490,9 @@ wss.on("connection", (ws) => {
     return;
   }
 
-  clients.set(ws, { slot });
+  clients.set(ws, { slot, name: getPlayerName(slot) });
   send(ws, "welcome", { slot, targetScore: MATCH_TARGET });
-  broadcast("toast", { message: `Player ${slot + 1} connected.` });
+  broadcast("toast", { message: `${getPlayerName(slot)} connected.` });
   maybeStartWhenReady();
 
   ws.on("message", (raw) => {
@@ -479,6 +519,16 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    if (message.type === "setName") {
+      const name = sanitizePlayerName(message.name, client.slot);
+      client.name = name;
+      playerNames[client.slot] = name;
+      refreshStatusText();
+      broadcast("toast", { message: `${name} is ready.` });
+      broadcastState();
+      return;
+    }
+
     if (message.type === "throw") {
       fireBanana(client.slot);
       broadcastState();
@@ -498,7 +548,7 @@ wss.on("connection", (ws) => {
     const client = clients.get(ws);
     clients.delete(ws);
     if (client) {
-      broadcast("toast", { message: `Player ${client.slot + 1} disconnected.` });
+      broadcast("toast", { message: `${getPlayerName(client.slot)} disconnected.` });
     }
     maybeStartWhenReady();
   });

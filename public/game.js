@@ -13,9 +13,17 @@ const ui = {
   restart: document.getElementById("restart"),
   score1: document.getElementById("score-p1"),
   score2: document.getElementById("score-p2"),
+  score1Label: document.querySelector('.scorecard[data-player="1"] .label'),
+  score2Label: document.querySelector('.scorecard[data-player="2"] .label'),
   wind: document.getElementById("wind"),
-  turn: document.getElementById("turn")
+  turn: document.getElementById("turn"),
+  nameModal: document.getElementById("name-modal"),
+  nameForm: document.getElementById("name-form"),
+  nameInput: document.getElementById("name-input")
 };
+
+const MAX_NAME_LENGTH = 12;
+const MAX_WIND = 0.5;
 
 const state = {
   localSlot: null,
@@ -23,8 +31,41 @@ const state = {
   snapshot: null,
   connected: false,
   toast: "",
-  toastUntil: 0
+  toastUntil: 0,
+  nameSubmitted: false
 };
+
+function defaultPlayerName(slot) {
+  return `Player ${slot + 1}`;
+}
+
+function sanitizePlayerName(value, slot) {
+  const fallback = defaultPlayerName(slot);
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const trimmed = value.trim().slice(0, MAX_NAME_LENGTH);
+  return trimmed || fallback;
+}
+
+function getPlayer(slot) {
+  return state.snapshot?.players?.[slot] || null;
+}
+
+function getPlayerName(slot) {
+  return getPlayer(slot)?.name || defaultPlayerName(slot);
+}
+
+function updateNameModal() {
+  const shouldShow = state.localSlot !== null && !state.nameSubmitted;
+  ui.nameModal.classList.toggle("visible", shouldShow);
+  if (!shouldShow) {
+    return;
+  }
+
+  ui.nameInput.placeholder = defaultPlayerName(state.localSlot);
+}
 
 function setToast(message) {
   state.toast = message;
@@ -54,7 +95,12 @@ socket.addEventListener("message", (event) => {
   if (message.type === "welcome") {
     state.localSlot = message.slot;
     state.targetScore = message.targetScore;
-    ui.playerSlot.textContent = `You are Player ${message.slot + 1}`;
+    ui.playerSlot.textContent = `You are ${defaultPlayerName(message.slot)}`;
+    updateNameModal();
+    requestAnimationFrame(() => {
+      ui.nameInput.focus();
+      ui.nameInput.select();
+    });
     return;
   }
 
@@ -71,8 +117,12 @@ socket.addEventListener("message", (event) => {
 
   if (message.type === "state") {
     state.snapshot = message.state;
+    if (state.localSlot !== null) {
+      ui.playerSlot.textContent = `You are ${getPlayerName(state.localSlot)}`;
+    }
     syncControls();
     updateHud();
+    updateNameModal();
   }
 });
 
@@ -111,12 +161,14 @@ function updateHud() {
   ui.status.textContent = game.status;
   ui.score1.textContent = game.scores[0];
   ui.score2.textContent = game.scores[1];
+  ui.score1Label.textContent = players[0].name;
+  ui.score2Label.textContent = players[1].name;
   ui.wind.textContent = `${game.wind > 0 ? ">" : game.wind < 0 ? "<" : "-"} ${Math.abs(game.wind).toFixed(3)}`;
-  ui.turn.textContent = game.phase === "waiting" ? "-" : `Player ${game.activePlayer + 1}`;
+  ui.turn.textContent = game.phase === "waiting" ? "-" : getPlayerName(game.activePlayer);
 
   const myTurn = state.localSlot === game.activePlayer;
   const ready = players.every((player) => player.connected);
-  const canThrow = ready && myTurn && game.phase === "aiming";
+  const canThrow = ready && myTurn && game.phase === "aiming" && state.nameSubmitted;
 
   ui.throw.disabled = !canThrow;
   ui.angle.disabled = !canThrow;
@@ -142,13 +194,28 @@ ui.restart.addEventListener("click", () => {
   send("restart");
 });
 
+ui.nameForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (state.localSlot === null) {
+    return;
+  }
+
+  const name = sanitizePlayerName(ui.nameInput.value, state.localSlot);
+  ui.nameInput.value = name;
+  state.nameSubmitted = true;
+  updateNameModal();
+  send("setName", { name });
+});
+
 window.addEventListener("keydown", (event) => {
   if (!state.snapshot || state.localSlot === null) {
     return;
   }
 
   const canAdjust =
-    state.snapshot.game.phase === "aiming" && state.snapshot.game.activePlayer === state.localSlot;
+    state.snapshot.game.phase === "aiming" &&
+    state.snapshot.game.activePlayer === state.localSlot &&
+    state.nameSubmitted;
 
   if (!canAdjust) {
     return;
@@ -260,9 +327,9 @@ function drawGorilla(gorilla, activePlayer) {
   ctx.stroke();
 
   // Player label above head
-  const label = gorilla.slot === 0 ? "P1" : "P2";
+  const label = getPlayerName(gorilla.slot);
   ctx.fillStyle = isActive ? "#ffe27a" : "#93a0c4";
-  ctx.font = "bold 14px Courier New";
+  ctx.font = "bold 11px Courier New";
   ctx.textAlign = "center";
   ctx.fillText(label, 0, -28);
   ctx.restore();
@@ -305,7 +372,8 @@ function drawExplosion(explosion) {
 function drawWindIndicator(game, width) {
   const centerX = width / 2;
   const y = 36;
-  const magnitude = Math.min(70, Math.abs(game.wind) * 420);
+  const maxMagnitude = 120;
+  const magnitude = Math.min(maxMagnitude, (Math.abs(game.wind) / MAX_WIND) * maxMagnitude);
   const direction = game.wind >= 0 ? 1 : -1;
 
   ctx.fillStyle = "#d6dfef";
@@ -354,7 +422,7 @@ function drawOverlay(snapshot) {
     ctx.fillStyle = "#ffcf6a";
     ctx.font = "34px Courier New";
     ctx.textAlign = "center";
-    ctx.fillText(`PLAYER ${game.matchWinner + 1} WINS`, canvas.width / 2, 140);
+    ctx.fillText(`${getPlayerName(game.matchWinner)} WINS`, canvas.width / 2, 140);
   }
 
   if (state.toast && performance.now() < state.toastUntil) {
