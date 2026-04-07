@@ -262,13 +262,14 @@ function createInitialState() {
   return state;
 }
 
-const game = createInitialState();
-const clients = new Map();
 const playerNames = Array.from({ length: MAX_PLAYERS }, (_, slot) => defaultPlayerName(slot));
 
 function getPlayerName(slot) {
   return playerNames[slot] || defaultPlayerName(slot);
 }
+
+const game = createInitialState();
+const clients = new Map();
 
 function refreshStatusText() {
   if (game.phase === "aiming") {
