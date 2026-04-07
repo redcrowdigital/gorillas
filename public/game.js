@@ -224,9 +224,9 @@ window.addEventListener("keydown", (event) => {
   let handled = true;
 
   if (event.key === "ArrowUp") {
-    ui.angle.value = Math.min(85, Number(ui.angle.value) + 1);
+    ui.angle.value = Math.min(359, Number(ui.angle.value) + 1);
   } else if (event.key === "ArrowDown") {
-    ui.angle.value = Math.max(5, Number(ui.angle.value) - 1);
+    ui.angle.value = Math.max(1, Number(ui.angle.value) - 1);
   } else if (event.key === "ArrowRight") {
     ui.power.value = Math.min(100, Number(ui.power.value) + 1);
   } else if (event.key === "ArrowLeft") {
@@ -373,7 +373,7 @@ function drawWindIndicator(game, width) {
   const centerX = width / 2;
   const y = 36;
   const maxMagnitude = 120;
-  const magnitude = Math.min(maxMagnitude, (Math.abs(game.wind) / MAX_WIND) * maxMagnitude);
+  const magnitude = Math.min(maxMagnitude, (Math.abs(game.wind) / 0.12) * maxMagnitude);
   const direction = game.wind >= 0 ? 1 : -1;
 
   ctx.fillStyle = "#d6dfef";

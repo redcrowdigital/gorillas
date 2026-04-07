@@ -8,12 +8,11 @@ const PUBLIC_DIR = path.join(__dirname, "public");
 const TICK_MS = 1000 / 60;
 const ARENA_WIDTH = 960;
 const ARENA_HEIGHT = 540;
-const GRAVITY = 0.18;
-const WIND_ACCEL = 0.06;
+const GRAVITY = 0.28;
 const MAX_PLAYERS = 2;
 const MATCH_TARGET = 3;
 const MAX_NAME_LENGTH = 12;
-const MAX_WIND = 0.5;
+const MAX_WIND = 0.12;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -215,7 +214,7 @@ function makeExplosion(state, x, y, radius, hitSlot = null) {
 function resetAim(state) {
   state.aim = [
     { angle: 45, power: 52 },
-    { angle: 45, power: 52 }
+    { angle: 135, power: 52 }
   ];
 }
 
@@ -394,7 +393,7 @@ function updateProjectile() {
   }
 
   const banana = game.banana;
-  banana.vx += game.wind * WIND_ACCEL;
+  banana.vx += game.wind;  // wind applied directly to VX, like original GORILLA.BAS
   banana.vy += GRAVITY;
   banana.x += banana.vx;
   banana.y += banana.vy;
@@ -406,14 +405,14 @@ function updateProjectile() {
     }
     if (gorillaHit(gorilla, banana.x, banana.y, 4)) {
       game.banana = null;
-      makeExplosion(game, banana.x, banana.y, 34, gorilla.slot);
+      makeExplosion(game, banana.x, banana.y, 140, gorilla.slot);
       return;
     }
   }
 
   if (terrainAt(game, banana.x, banana.y)) {
     game.banana = null;
-    makeExplosion(game, banana.x, banana.y, 30);
+    makeExplosion(game, banana.x, banana.y, 140);
     return;
   }
 
@@ -514,7 +513,7 @@ wss.on("connection", (ws) => {
       if (!current) {
         return;
       }
-      current.angle = clamp(Number(message.angle) || current.angle, 5, 85);
+      current.angle = clamp(Number(message.angle) || current.angle, 1, 359);
       current.power = clamp(Number(message.power) || current.power, 10, 100);
       broadcastState();
       return;
