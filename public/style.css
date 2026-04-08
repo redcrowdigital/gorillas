@@ -167,6 +167,28 @@ button {
   font-size: 1.1rem;
   line-height: 1;
   transition: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.copy-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.copy-btn .tick-icon {
+  display: none;
+}
+
+.copy-btn.copied .copy-icon {
+  display: none;
+}
+
+.copy-btn.copied .tick-icon {
+  display: block;
+  fill: #4ade80;
 }
 
 .game-shell {

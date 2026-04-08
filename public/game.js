@@ -156,10 +156,10 @@ function resetChat() {
 }
 
 function flashCopyButton(button) {
-  button.textContent = "\u2714";
+  button.classList.add("copied");
   clearTimeout(button._resetTimer);
   button._resetTimer = setTimeout(() => {
-    button.textContent = "\uD83D\uDCCB";
+    button.classList.remove("copied");
   }, 1500);
 }
 
