@@ -155,24 +155,32 @@ function resetChat() {
   ui.chatMessages.textContent = "";
 }
 
-function copyInvite(value) {
+function flashCopyButton(button) {
+  button.textContent = "\u2714";
+  clearTimeout(button._resetTimer);
+  button._resetTimer = setTimeout(() => {
+    button.textContent = "\uD83D\uDCCB";
+  }, 1500);
+}
+
+function copyInvite(value, button) {
   if (!value) {
     return;
   }
 
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(value).then(() => {
-      setToast("Invite link copied.");
+      flashCopyButton(button);
     }).catch(() => {
-      fallbackCopy(value);
+      fallbackCopy(value, button);
     });
     return;
   }
 
-  fallbackCopy(value);
+  fallbackCopy(value, button);
 }
 
-function fallbackCopy(value) {
+function fallbackCopy(value, button) {
   const temp = document.createElement("textarea");
   temp.value = value;
   temp.style.position = "fixed";
@@ -181,9 +189,9 @@ function fallbackCopy(value) {
   temp.select();
   try {
     document.execCommand("copy");
-    setToast("Invite link copied.");
+    flashCopyButton(button);
   } catch {
-    setToast("Copy failed. Select the link manually.");
+    // silent fail — user can select manually
   }
   document.body.removeChild(temp);
 }
@@ -360,11 +368,11 @@ ui.joinForm.addEventListener("submit", (event) => {
 });
 
 ui.copyInvite.addEventListener("click", () => {
-  copyInvite(ui.inviteLink.value);
+  copyInvite(ui.inviteLink.value, ui.copyInvite);
 });
 
 ui.copyBannerInvite.addEventListener("click", () => {
-  copyInvite(ui.bannerInviteLink.value);
+  copyInvite(ui.bannerInviteLink.value, ui.copyBannerInvite);
 });
 
 ui.angle.addEventListener("input", () => {

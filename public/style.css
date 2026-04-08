@@ -161,6 +161,14 @@ button {
   padding-inline: 18px;
 }
 
+.copy-btn {
+  min-width: 44px;
+  padding-inline: 10px;
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: none;
+}
+
 .game-shell {
   display: block;
 }
