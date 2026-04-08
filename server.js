@@ -214,7 +214,7 @@ function makeExplosion(state, x, y, radius, hitSlot = null) {
 function resetAim(state) {
   state.aim = [
     { angle: 45, power: 52 },
-    { angle: 135, power: 52 }
+    { angle: 315, power: 52 }
   ];
 }
 
@@ -367,11 +367,11 @@ function fireBanana(slot) {
   }
 
   const { angle, power } = game.aim[slot];
+  // Compass convention: 0° = up, 90° = right, 180° = down, 270° = left
   const radians = (angle * Math.PI) / 180;
-  const direction = slot === 0 ? 1 : -1;
   const speed = power / 4;
-  const velocityX = Math.cos(radians) * speed * direction;
-  const velocityY = -Math.sin(radians) * speed;
+  const velocityX = Math.sin(radians) * speed;
+  const velocityY = -Math.cos(radians) * speed;
 
   game.banana = {
     x: thrower.x + direction * 20,
@@ -513,7 +513,7 @@ wss.on("connection", (ws) => {
       if (!current) {
         return;
       }
-      current.angle = clamp(Number(message.angle) || current.angle, 1, 359);
+      current.angle = clamp(Number(message.angle) ?? current.angle, 0, 359);
       current.power = clamp(Number(message.power) || current.power, 10, 100);
       broadcastState();
       return;

@@ -226,7 +226,7 @@ window.addEventListener("keydown", (event) => {
   if (event.key === "ArrowUp") {
     ui.angle.value = Math.min(359, Number(ui.angle.value) + 1);
   } else if (event.key === "ArrowDown") {
-    ui.angle.value = Math.max(1, Number(ui.angle.value) - 1);
+    ui.angle.value = Math.max(0, Number(ui.angle.value) - 1);
   } else if (event.key === "ArrowRight") {
     ui.power.value = Math.min(100, Number(ui.power.value) + 1);
   } else if (event.key === "ArrowLeft") {
