@@ -405,14 +405,14 @@ function updateProjectile() {
     }
     if (gorillaHit(gorilla, banana.x, banana.y, 4)) {
       game.banana = null;
-      makeExplosion(game, banana.x, banana.y, 140, gorilla.slot);
+      makeExplosion(game, banana.x, banana.y, 34, gorilla.slot);
       return;
     }
   }
 
   if (terrainAt(game, banana.x, banana.y)) {
     game.banana = null;
-    makeExplosion(game, banana.x, banana.y, 140);
+    makeExplosion(game, banana.x, banana.y, 30);
     return;
   }
 
