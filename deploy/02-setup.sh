@@ -1,26 +1,30 @@
 #!/usr/bin/env bash
 #
-# Gorillas - Server Setup Script
-# Configures a fresh Lightsail Ubuntu instance with Node.js, PM2, and Caddy
+# Server Setup Script
+# Configures a fresh Ubuntu server with Node.js, PM2, and Caddy for this app.
 #
-# Usage: bash deploy/02-setup.sh <server-ip>
+# Usage:
+#   DOMAIN=app.example.com REPO=https://github.com/owner/repo.git \
+#   APP_NAME=my-app APP_DIR=/opt/my-app KEY_FILE=my-key.pem \
+#   bash deploy/02-setup.sh <server-ip>
 #
 # This SSHs into the server and runs all setup commands remotely.
-# Requires the SSH key from 01-provision.sh in the current directory.
 
 set -euo pipefail
 
 SERVER_IP="${1:?Usage: bash deploy/02-setup.sh <server-ip>}"
-KEY_FILE="gorillas-ssh-key.pem"
-DOMAIN="gorillas.redcrow.digital"
-REPO="https://github.com/jarvisrcd/gorillas.git"
+APP_NAME="${APP_NAME:-gorillas}"
+APP_DIR="${APP_DIR:-/opt/gorillas}"
+KEY_FILE="${KEY_FILE:-gorillas-prod-ssh-key.pem}"
+DOMAIN="${DOMAIN:-gorillas.redcrow.digital}"
+REPO="${REPO:-https://github.com/redcrowdigital/gorillas.git}"
 
 if [[ ! -f "$KEY_FILE" ]]; then
   echo "ERROR: SSH key '${KEY_FILE}' not found. Run 01-provision.sh first."
   exit 1
 fi
 
-echo "=== Gorillas Server Setup ==="
+echo "=== Server Setup ==="
 echo "Server: ubuntu@${SERVER_IP}"
 echo "Domain: ${DOMAIN}"
 echo ""
@@ -49,14 +53,14 @@ $SSH_CMD "sudo apt install -y debian-keyring debian-archive-keyring apt-transpor
   sudo apt update && sudo apt install -y caddy"
 
 echo ""
-echo "[5/6] Deploying Gorillas..."
-$SSH_CMD "sudo git clone ${REPO} /opt/gorillas && \
-  cd /opt/gorillas && \
+echo "[5/6] Deploying app..."
+$SSH_CMD "sudo git clone ${REPO} ${APP_DIR} && \
+  cd ${APP_DIR} && \
   sudo npm install --production && \
-  sudo chown -R ubuntu:ubuntu /opt/gorillas"
+  sudo chown -R ubuntu:ubuntu ${APP_DIR}"
 
 # Start with PM2 binding to localhost only
-$SSH_CMD "cd /opt/gorillas && HOST=127.0.0.1 pm2 start server.js --name gorillas --env production && \
+$SSH_CMD "cd ${APP_DIR} && HOST=127.0.0.1 pm2 start server.js --name ${APP_NAME} --env production && \
   pm2 save"
 
 # Set up PM2 startup script (run as ubuntu user)
@@ -74,15 +78,15 @@ sudo systemctl restart caddy"
 echo ""
 echo "=== SETUP COMPLETE ==="
 echo ""
-echo "Game URL: https://${DOMAIN}"
+echo "App URL: https://${DOMAIN}"
 echo ""
 echo "Useful commands:"
 echo "  SSH:          ssh -i ${KEY_FILE} ubuntu@${SERVER_IP}"
-echo "  App logs:     ssh -i ${KEY_FILE} ubuntu@${SERVER_IP} 'pm2 logs gorillas'"
-echo "  App restart:  ssh -i ${KEY_FILE} ubuntu@${SERVER_IP} 'pm2 restart gorillas'"
+echo "  App logs:     ssh -i ${KEY_FILE} ubuntu@${SERVER_IP} 'pm2 logs ${APP_NAME}'"
+echo "  App restart:  ssh -i ${KEY_FILE} ubuntu@${SERVER_IP} 'pm2 restart ${APP_NAME}'"
 echo "  App status:   ssh -i ${KEY_FILE} ubuntu@${SERVER_IP} 'pm2 status'"
 echo "  Caddy logs:   ssh -i ${KEY_FILE} ubuntu@${SERVER_IP} 'sudo journalctl -u caddy -f'"
 echo ""
 echo "DEPLOY UPDATES:"
-echo "  ssh -i ${KEY_FILE} ubuntu@${SERVER_IP} 'cd /opt/gorillas && git pull && npm install --production && pm2 restart gorillas'"
+echo "  ssh -i ${KEY_FILE} ubuntu@${SERVER_IP} 'cd ${APP_DIR} && git pull && npm install --production && pm2 restart ${APP_NAME}'"
 echo ""

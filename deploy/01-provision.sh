@@ -1,36 +1,32 @@
 #!/usr/bin/env bash
 #
-# Gorillas - Lightsail Provisioning Script
-# Creates an isolated Lightsail instance for gorillas.redcrow.digital
+# AWS Lightsail Provisioning Script
+# Creates an isolated Lightsail instance for a small Node.js app.
 #
 # Prerequisites:
 #   - AWS CLI v2 configured with credentials that have Lightsail permissions
-#   - Region: ap-southeast-2 (Sydney)
 #
-# This script is SAFE for existing infrastructure:
-#   - Lightsail is completely isolated from EC2/VPC/RDS/etc.
-#   - Creates only: 1 instance, 1 static IP, firewall rules on that instance
-#   - Uses unique names prefixed with "gorillas-" to avoid collisions
-#
-# Usage: bash deploy/01-provision.sh
+# Usage:
+#   INSTANCE_NAME=my-app-prod STATIC_IP_NAME=my-app-prod-ip REGION=ap-southeast-2 \
+#   bash deploy/01-provision.sh
 
 set -euo pipefail
 
-INSTANCE_NAME="gorillas-prod"
-STATIC_IP_NAME="gorillas-prod-ip"
-REGION="ap-southeast-2"
-AZ="${REGION}a"
-BLUEPRINT="ubuntu_24_04"
-BUNDLE="nano_3_2"  # $3.50/mo: 512MB RAM, 1 vCPU, 1TB transfer
+INSTANCE_NAME="${INSTANCE_NAME:-gorillas-prod}"
+STATIC_IP_NAME="${STATIC_IP_NAME:-gorillas-prod-ip}"
+REGION="${REGION:-ap-southeast-2}"
+AZ="${AZ:-${REGION}a}"
+BLUEPRINT="${BLUEPRINT:-ubuntu_24_04}"
+BUNDLE="${BUNDLE:-nano_3_2}"  # $3.50/mo: 512MB RAM, 1 vCPU, 1TB transfer
 
-echo "=== Gorillas Lightsail Provisioner ==="
+echo "=== Lightsail Provisioner ==="
 echo ""
 echo "This will create:"
 echo "  - Lightsail instance: ${INSTANCE_NAME} (${BUNDLE}, ${AZ})"
 echo "  - Static IP: ${STATIC_IP_NAME}"
 echo "  - Firewall: ports 22, 80, 443 only"
 echo ""
-echo "Estimated cost: \$3.50 USD/month"
+echo "Estimated cost: depends on bundle (${BUNDLE})"
 echo "This does NOT touch EC2, VPC, RDS, or any other AWS services."
 echo ""
 read -p "Continue? (y/N) " confirm
@@ -100,7 +96,7 @@ echo "       Firewall set: SSH(22), HTTP(80), HTTPS(443)"
 echo ""
 echo "[4/4] Fetching SSH key..."
 # Download the default key pair for this region
-KEY_FILE="gorillas-ssh-key.pem"
+KEY_FILE="${KEY_FILE:-${INSTANCE_NAME}-ssh-key.pem}"
 aws lightsail download-default-key-pair \
   --region "$REGION" \
   --query 'privateKeyBase64' \
@@ -120,6 +116,6 @@ echo "Static IP: ${STATIC_IP}"
 echo "SSH:       ssh -i ${KEY_FILE} ubuntu@${STATIC_IP}"
 echo ""
 echo "NEXT STEPS:"
-echo "  1. Add Cloudflare DNS: A record 'gorillas' -> ${STATIC_IP} (DNS only, grey cloud)"
+echo "  1. Point your DNS A record at ${STATIC_IP}"
 echo "  2. Run: bash deploy/02-setup.sh ${STATIC_IP}"
 echo ""
