@@ -4,6 +4,7 @@ const path = require("path");
 const WebSocket = require("ws");
 
 const PORT = 3001;
+const HOST = process.env.HOST || "0.0.0.0";
 const PUBLIC_DIR = path.join(__dirname, "public");
 const TICK_MS = 1000 / 60;
 const ARENA_WIDTH = 960;
@@ -728,6 +729,6 @@ wss.on("connection", (ws) => {
 
 setInterval(tick, TICK_MS);
 
-server.listen(PORT, () => {
+server.listen(PORT, HOST, () => {
   console.log(`Gorillas server running on http://0.0.0.0:${PORT}`);
 });
