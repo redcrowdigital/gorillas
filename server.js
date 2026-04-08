@@ -374,7 +374,7 @@ function fireBanana(slot) {
   const velocityY = -Math.cos(radians) * speed;
 
   game.banana = {
-    x: thrower.x + direction * 20,
+    x: thrower.x + Math.sign(velocityX) * 20,
     y: thrower.y - 14,
     vx: velocityX,
     vy: velocityY,
