@@ -2,6 +2,21 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const ui = {
+  lobbyScreen: document.getElementById("lobby-screen"),
+  gameShell: document.getElementById("game-shell"),
+  createGame: document.getElementById("create-game"),
+  showJoin: document.getElementById("show-join"),
+  createPanel: document.getElementById("create-panel"),
+  joinForm: document.getElementById("join-form"),
+  joinCode: document.getElementById("join-code"),
+  lobbyRoomCode: document.getElementById("lobby-room-code"),
+  inviteLink: document.getElementById("invite-link"),
+  copyInvite: document.getElementById("copy-invite"),
+  roomCode: document.getElementById("room-code"),
+  roomBanner: document.getElementById("room-banner"),
+  bannerRoomCode: document.getElementById("banner-room-code"),
+  bannerInviteLink: document.getElementById("banner-invite-link"),
+  copyBannerInvite: document.getElementById("copy-banner-invite"),
   connection: document.getElementById("connection"),
   status: document.getElementById("status"),
   playerSlot: document.getElementById("player-slot"),
@@ -19,7 +34,10 @@ const ui = {
   turn: document.getElementById("turn"),
   nameModal: document.getElementById("name-modal"),
   nameForm: document.getElementById("name-form"),
-  nameInput: document.getElementById("name-input")
+  nameInput: document.getElementById("name-input"),
+  chatMessages: document.getElementById("chat-messages"),
+  chatForm: document.getElementById("chat-form"),
+  chatInput: document.getElementById("chat-input")
 };
 
 const MAX_NAME_LENGTH = 12;
@@ -32,7 +50,10 @@ const state = {
   connected: false,
   toast: "",
   toastUntil: 0,
-  nameSubmitted: false
+  nameSubmitted: false,
+  roomCode: "",
+  chatMessages: [],
+  pendingAutoJoin: new URLSearchParams(window.location.search).get("room")?.trim().toUpperCase() || ""
 };
 
 function defaultPlayerName(slot) {
@@ -47,6 +68,14 @@ function sanitizePlayerName(value, slot) {
 
   const trimmed = value.trim().slice(0, MAX_NAME_LENGTH);
   return trimmed || fallback;
+}
+
+function sanitizeRoomCode(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
 }
 
 function getPlayer(slot) {
@@ -67,8 +96,25 @@ function formatWindText(wind) {
   return `${direction} ${percent}%`;
 }
 
+function inviteLinkFor(code) {
+  return `${window.location.origin}?room=${code}`;
+}
+
+function updateRoomUi() {
+  const joined = Boolean(state.roomCode);
+  ui.lobbyScreen.classList.toggle("hidden", joined);
+  ui.gameShell.classList.toggle("hidden", !joined);
+  ui.roomCode.textContent = state.roomCode || "----";
+  ui.bannerRoomCode.textContent = state.roomCode || "----";
+
+  const inviteLink = state.roomCode ? inviteLinkFor(state.roomCode) : "";
+  ui.inviteLink.value = inviteLink;
+  ui.bannerInviteLink.value = inviteLink;
+  ui.roomBanner.classList.toggle("hidden", !state.roomCode);
+}
+
 function updateNameModal() {
-  const shouldShow = state.localSlot !== null && !state.nameSubmitted;
+  const shouldShow = state.roomCode && state.localSlot !== null && !state.nameSubmitted;
   ui.nameModal.classList.toggle("visible", shouldShow);
   if (!shouldShow) {
     return;
@@ -82,6 +128,57 @@ function setToast(message) {
   state.toastUntil = performance.now() + 2200;
 }
 
+function appendChatMessage(from, text) {
+  state.chatMessages.push({ from, text });
+  if (state.chatMessages.length > 100) {
+    state.chatMessages.shift();
+    ui.chatMessages.firstChild?.remove();
+  }
+
+  const item = document.createElement("div");
+  item.className = "chat-message";
+
+  const author = document.createElement("strong");
+  author.className = "chat-author";
+  author.textContent = `${from}: `;
+
+  const body = document.createElement("span");
+  body.textContent = text;
+
+  item.append(author, body);
+  ui.chatMessages.appendChild(item);
+  ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight;
+}
+
+function resetChat() {
+  state.chatMessages = [];
+  ui.chatMessages.textContent = "";
+}
+
+function copyInvite(value) {
+  if (!value) {
+    return;
+  }
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(value).then(() => {
+      setToast("Invite link copied.");
+    }).catch(() => {
+      setToast("Unable to copy invite link.");
+    });
+    return;
+  }
+
+  setToast("Clipboard not available.");
+}
+
+function showCreatePanel(code) {
+  ui.createPanel.classList.remove("hidden");
+  ui.joinForm.classList.add("hidden");
+  ui.lobbyRoomCode.textContent = code;
+  ui.inviteLink.value = inviteLinkFor(code);
+}
+
 function wsUrl() {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${location.host}`;
@@ -92,6 +189,15 @@ const socket = new WebSocket(wsUrl());
 socket.addEventListener("open", () => {
   state.connected = true;
   ui.connection.textContent = "Connected";
+
+  if (state.pendingAutoJoin) {
+    const code = sanitizeRoomCode(state.pendingAutoJoin);
+    if (code.length === 4) {
+      ui.joinCode.value = code;
+      ui.joinForm.classList.remove("hidden");
+      send("joinRoom", { code });
+    }
+  }
 });
 
 socket.addEventListener("close", () => {
@@ -102,15 +208,35 @@ socket.addEventListener("close", () => {
 socket.addEventListener("message", (event) => {
   const message = JSON.parse(event.data);
 
+  if (message.type === "roomCreated") {
+    state.roomCode = message.code;
+    showCreatePanel(message.code);
+    updateRoomUi();
+    return;
+  }
+
+  if (message.type === "roomJoined") {
+    state.roomCode = message.code;
+    updateRoomUi();
+    return;
+  }
+
   if (message.type === "welcome") {
     state.localSlot = message.slot;
     state.targetScore = message.targetScore;
+    state.roomCode = message.code || state.roomCode;
     ui.playerSlot.textContent = `You are ${defaultPlayerName(message.slot)}`;
+    updateRoomUi();
     updateNameModal();
     requestAnimationFrame(() => {
       ui.nameInput.focus();
       ui.nameInput.select();
     });
+    return;
+  }
+
+  if (message.type === "chat") {
+    appendChatMessage(message.from, message.text);
     return;
   }
 
@@ -127,9 +253,11 @@ socket.addEventListener("message", (event) => {
 
   if (message.type === "state") {
     state.snapshot = message.state;
+    state.roomCode = message.state.roomCode || state.roomCode;
     if (state.localSlot !== null) {
       ui.playerSlot.textContent = `You are ${getPlayerName(state.localSlot)}`;
     }
+    updateRoomUi();
     syncControls();
     updateHud();
     updateNameModal();
@@ -186,6 +314,43 @@ function updateHud() {
   ui.restart.disabled = !ready;
 }
 
+ui.createGame.addEventListener("click", () => {
+  resetChat();
+  send("createRoom");
+});
+
+ui.showJoin.addEventListener("click", () => {
+  ui.joinForm.classList.remove("hidden");
+  ui.createPanel.classList.add("hidden");
+  ui.joinCode.focus();
+  ui.joinCode.select();
+});
+
+ui.joinCode.addEventListener("input", () => {
+  ui.joinCode.value = sanitizeRoomCode(ui.joinCode.value);
+});
+
+ui.joinForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const code = sanitizeRoomCode(ui.joinCode.value);
+  ui.joinCode.value = code;
+  if (code.length !== 4) {
+    setToast("Enter a valid 4-letter room code.");
+    return;
+  }
+
+  resetChat();
+  send("joinRoom", { code });
+});
+
+ui.copyInvite.addEventListener("click", () => {
+  copyInvite(ui.inviteLink.value);
+});
+
+ui.copyBannerInvite.addEventListener("click", () => {
+  copyInvite(ui.bannerInviteLink.value);
+});
+
 ui.angle.addEventListener("input", () => {
   ui.angleValue.textContent = `${ui.angle.value}\u00b0`;
   send("aim", { angle: Number(ui.angle.value), power: Number(ui.power.value) });
@@ -217,7 +382,22 @@ ui.nameForm.addEventListener("submit", (event) => {
   send("setName", { name });
 });
 
+ui.chatForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = ui.chatInput.value.trim().slice(0, 200);
+  if (!text || !state.roomCode) {
+    return;
+  }
+
+  ui.chatInput.value = "";
+  send("chat", { text });
+});
+
 window.addEventListener("keydown", (event) => {
+  if (event.target === ui.chatInput || event.target === ui.joinCode || event.target === ui.nameInput) {
+    return;
+  }
+
   if (!state.snapshot || state.localSlot === null) {
     return;
   }
@@ -336,7 +516,6 @@ function drawGorilla(gorilla, activePlayer) {
   ctx.lineTo((12 + 8) * facing, 8);
   ctx.stroke();
 
-  // Player label above head
   const label = getPlayerName(gorilla.slot);
   ctx.fillStyle = isActive ? "#ffe27a" : "#93a0c4";
   ctx.font = "bold 11px Courier New";
@@ -453,11 +632,19 @@ function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawSky(canvas.width, canvas.height);
 
+  if (!state.roomCode) {
+    ctx.fillStyle = "#f0e6c8";
+    ctx.font = "22px Courier New";
+    ctx.textAlign = "center";
+    ctx.fillText("Join or create a room to start.", canvas.width / 2, canvas.height / 2);
+    return;
+  }
+
   if (!state.snapshot) {
     ctx.fillStyle = "#f0e6c8";
     ctx.font = "22px Courier New";
     ctx.textAlign = "center";
-    ctx.fillText("Connecting to server...", canvas.width / 2, canvas.height / 2);
+    ctx.fillText("Connecting to room...", canvas.width / 2, canvas.height / 2);
     return;
   }
 
@@ -472,4 +659,5 @@ function render() {
   drawOverlay(state.snapshot);
 }
 
+updateRoomUi();
 render();
