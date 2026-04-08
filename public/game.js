@@ -23,7 +23,7 @@ const ui = {
 };
 
 const MAX_NAME_LENGTH = 12;
-const MAX_WIND = 0.5;
+const MAX_WIND = 0.12;
 
 const state = {
   localSlot: null,
@@ -55,6 +55,16 @@ function getPlayer(slot) {
 
 function getPlayerName(slot) {
   return getPlayer(slot)?.name || defaultPlayerName(slot);
+}
+
+function formatWindText(wind) {
+  if (wind === 0) {
+    return "Calm 0%";
+  }
+
+  const direction = wind < 0 ? "Left" : "Right";
+  const percent = Math.round((Math.abs(wind) / MAX_WIND) * 100);
+  return `${direction} ${percent}%`;
 }
 
 function updateNameModal() {
@@ -163,7 +173,7 @@ function updateHud() {
   ui.score2.textContent = game.scores[1];
   ui.score1Label.textContent = players[0].name;
   ui.score2Label.textContent = players[1].name;
-  ui.wind.textContent = `${game.wind > 0 ? ">" : game.wind < 0 ? "<" : "-"} ${Math.abs(game.wind).toFixed(3)}`;
+  ui.wind.textContent = formatWindText(game.wind);
   ui.turn.textContent = game.phase === "waiting" ? "-" : getPlayerName(game.activePlayer);
 
   const myTurn = state.localSlot === game.activePlayer;

@@ -51,6 +51,16 @@ function sanitizePlayerName(value, slot) {
   return trimmed || fallback;
 }
 
+function formatWindText(wind) {
+  if (wind === 0) {
+    return "Calm 0%";
+  }
+
+  const direction = wind < 0 ? "Left" : "Right";
+  const percent = Math.round((Math.abs(wind) / MAX_WIND) * 100);
+  return `${direction} ${percent}%`;
+}
+
 function distanceSquared(a, b) {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
@@ -384,7 +394,7 @@ function fireBanana(slot) {
 
   thrower.pose = "throw";
   game.phase = "projectile";
-  game.status = `Banana airborne... wind ${game.wind > 0 ? ">" : "<"} ${Math.abs(game.wind).toFixed(3)}`;
+  game.status = `Banana airborne... wind ${formatWindText(game.wind)}`;
 }
 
 function updateProjectile() {
