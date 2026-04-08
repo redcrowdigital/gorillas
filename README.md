@@ -24,6 +24,12 @@ Open `http://localhost:3001` in two browsers or on two devices on the same LAN.
 
 This repo includes optional generic deployment scripts for a small Ubuntu/Lightsail box with Caddy + PM2.
 
+**Tear down a server:**
+```bash
+INSTANCE_NAME=gorillas-prod STATIC_IP_NAME=gorillas-prod-ip REGION=ap-southeast-2 \
+  bash deploy/00-destroy.sh
+```
+
 **Provision a server:**
 ```bash
 INSTANCE_NAME=gorillas-prod STATIC_IP_NAME=gorillas-prod-ip REGION=ap-southeast-2 \

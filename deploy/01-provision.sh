@@ -95,16 +95,22 @@ echo "       Firewall set: SSH(22), HTTP(80), HTTPS(443)"
 
 echo ""
 echo "[4/4] Fetching SSH key..."
-# Download the default key pair for this region
+# Download the default key pair for this region.
+# AWS CLI returns PEM text for this command, so write it directly and validate it.
 KEY_FILE="${KEY_FILE:-${INSTANCE_NAME}-ssh-key.pem}"
+TMP_KEY="${KEY_FILE}.tmp"
 aws lightsail download-default-key-pair \
   --region "$REGION" \
-  --query 'privateKeyBase64' \
-  --output text | base64 -d > "$KEY_FILE" 2>/dev/null || \
-aws lightsail download-default-key-pair \
-  --region "$REGION" \
-  --query 'privateKeyBase64' \
-  --output text > "$KEY_FILE"
+  --output text > "$TMP_KEY"
+
+if ! grep -q "BEGIN .*PRIVATE KEY" "$TMP_KEY"; then
+  echo "ERROR: Downloaded key does not look like a valid private key."
+  echo "Saved raw output to: $TMP_KEY"
+  echo "Aborting so you do not proceed with a broken SSH key."
+  exit 1
+fi
+
+mv "$TMP_KEY" "$KEY_FILE"
 chmod 600 "$KEY_FILE"
 echo "       SSH key saved to: ${KEY_FILE}"
 
