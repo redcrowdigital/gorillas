@@ -164,12 +164,28 @@ function copyInvite(value) {
     navigator.clipboard.writeText(value).then(() => {
       setToast("Invite link copied.");
     }).catch(() => {
-      setToast("Unable to copy invite link.");
+      fallbackCopy(value);
     });
     return;
   }
 
-  setToast("Clipboard not available.");
+  fallbackCopy(value);
+}
+
+function fallbackCopy(value) {
+  const temp = document.createElement("textarea");
+  temp.value = value;
+  temp.style.position = "fixed";
+  temp.style.opacity = "0";
+  document.body.appendChild(temp);
+  temp.select();
+  try {
+    document.execCommand("copy");
+    setToast("Invite link copied.");
+  } catch {
+    setToast("Copy failed. Select the link manually.");
+  }
+  document.body.removeChild(temp);
 }
 
 function showCreatePanel(code) {

@@ -73,7 +73,7 @@ button {
 
 .lobby-title {
   margin: 14px 0 12px;
-  font-size: clamp(3.5rem, 12vw, 6rem);
+  font-size: clamp(2rem, 8vw, 3.2rem);
   letter-spacing: 0.28em;
   text-indent: 0.28em;
   color: var(--glow);
