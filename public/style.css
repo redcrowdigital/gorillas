@@ -459,3 +459,30 @@ button:disabled {
     flex-direction: column;
   }
 }
+
+/* Footer */
+.site-footer {
+  padding: 24px 0 18px;
+  text-align: center;
+}
+
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.footer-link:hover {
+  opacity: 0.85;
+}
+
+.footer-logo {
+  height: 22px;
+  width: auto;
+}
