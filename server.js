@@ -375,7 +375,7 @@ function fireBanana(slot) {
 
   game.banana = {
     x: thrower.x + Math.sign(velocityX) * 30,
-    y: thrower.y - 14,
+    y: thrower.y - 30,
     vx: velocityX,
     vy: velocityY,
     owner: slot,
