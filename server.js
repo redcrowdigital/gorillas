@@ -162,7 +162,7 @@ function gorillaHit(gorilla, x, y, radius = 0) {
   return dx * dx + dy * dy <= hitRadius * hitRadius;
 }
 
-function makeExplosion(state, x, y, radius, hitSlot = null, ownerSlot = null) {
+function makeExplosion(state, x, y, radius, hitSlot = null) {
   state.explosion = { x, y, radius, ttl: 28 };
 
   for (const building of state.city) {
@@ -178,7 +178,6 @@ function makeExplosion(state, x, y, radius, hitSlot = null, ownerSlot = null) {
   let victim = hitSlot;
   if (victim === null) {
     for (const gorilla of state.gorillas) {
-      if (gorilla.slot === ownerSlot) continue;  // immune to own explosion
       if (gorillaAlive(gorilla) && gorillaHit(gorilla, x, y, radius)) {
         victim = gorilla.slot;
         break;
@@ -413,7 +412,7 @@ function updateProjectile() {
 
   if (terrainAt(game, banana.x, banana.y)) {
     game.banana = null;
-    makeExplosion(game, banana.x, banana.y, 30, null, banana.owner);
+    makeExplosion(game, banana.x, banana.y, 30);
     return;
   }
 
