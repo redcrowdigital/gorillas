@@ -32,6 +32,9 @@ const ui = {
   score2Label: document.querySelector('.scorecard[data-player="2"] .label'),
   wind: document.getElementById("wind"),
   turn: document.getElementById("turn"),
+  activeRoster: document.getElementById("active-roster"),
+  spectatorRoster: document.getElementById("spectator-roster"),
+  queueRoster: document.getElementById("queue-roster"),
   nameModal: document.getElementById("name-modal"),
   nameForm: document.getElementById("name-form"),
   nameInput: document.getElementById("name-input"),
@@ -44,7 +47,9 @@ const MAX_NAME_LENGTH = 12;
 const MAX_WIND = 0.12;
 
 const state = {
+  localParticipantId: null,
   localSlot: null,
+  localRole: null,
   targetScore: 3,
   snapshot: null,
   connected: false,
@@ -114,7 +119,7 @@ function updateRoomUi() {
 }
 
 function updateNameModal() {
-  const shouldShow = state.roomCode && state.localSlot !== null && !state.nameSubmitted;
+  const shouldShow = state.roomCode && state.localRole === "active" && state.localSlot !== null && !state.nameSubmitted;
   ui.nameModal.classList.toggle("visible", shouldShow);
   if (!shouldShow) {
     return;
@@ -246,10 +251,14 @@ socket.addEventListener("message", (event) => {
   }
 
   if (message.type === "welcome") {
+    state.localParticipantId = message.participantId || null;
     state.localSlot = message.slot;
+    state.localRole = message.role || (message.slot !== null ? "active" : "spectator");
     state.targetScore = message.targetScore;
     state.roomCode = message.code || state.roomCode;
-    ui.playerSlot.textContent = `You are ${defaultPlayerName(message.slot)}`;
+    ui.playerSlot.textContent = state.localRole === "active"
+      ? `You are ${defaultPlayerName(message.slot)}`
+      : "You are spectating";
     updateRoomUi();
     updateNameModal();
     requestAnimationFrame(() => {
@@ -296,7 +305,7 @@ function send(type, payload = {}) {
 }
 
 function syncControls() {
-  if (!state.snapshot || state.localSlot === null) {
+  if (!state.snapshot || state.localSlot === null || state.localRole !== "active") {
     return;
   }
   const aim = state.snapshot.game.aim[state.localSlot];
@@ -314,12 +323,22 @@ function syncControls() {
   ui.powerValue.textContent = ui.power.value;
 }
 
+function renderRoster(list, entries, ordered = false) {
+  list.textContent = "";
+  const items = entries.length ? entries : [{ name: ordered ? "Nobody waiting" : "None" }];
+  items.forEach((entry) => {
+    const item = document.createElement("li");
+    item.textContent = entry.name;
+    list.appendChild(item);
+  });
+}
+
 function updateHud() {
   if (!state.snapshot) {
     return;
   }
 
-  const { game, players } = state.snapshot;
+  const { game, players, participants = [], queue = [] } = state.snapshot;
   ui.status.textContent = game.status;
   ui.score1.textContent = game.scores[0];
   ui.score2.textContent = game.scores[1];
@@ -328,14 +347,32 @@ function updateHud() {
   ui.wind.textContent = formatWindText(game.wind);
   ui.turn.textContent = game.phase === "waiting" ? "-" : getPlayerName(game.activePlayer);
 
-  const myTurn = state.localSlot === game.activePlayer;
+  const activeParticipants = participants.filter((participant) => participant.role === "active");
+  const spectatorParticipants = participants.filter((participant) => participant.role === "spectator");
+  const localParticipant = participants.find((participant) => participant.id === state.localParticipantId) || null;
+  renderRoster(ui.activeRoster, activeParticipants);
+  renderRoster(ui.spectatorRoster, spectatorParticipants);
+  renderRoster(ui.queueRoster, queue, true);
+
+  if (localParticipant) {
+    state.localRole = localParticipant.role;
+    state.localSlot = localParticipant.slot;
+  }
+
+  const myTurn = state.localRole === "active" && state.localSlot === game.activePlayer;
   const ready = players.every((player) => player.connected);
   const canThrow = ready && myTurn && game.phase === "aiming" && state.nameSubmitted;
+
+  if (state.localRole === "active" && state.localSlot !== null) {
+    ui.playerSlot.textContent = `You are ${getPlayerName(state.localSlot)}`;
+  } else {
+    ui.playerSlot.textContent = "You are spectating";
+  }
 
   ui.throw.disabled = !canThrow;
   ui.angle.disabled = !canThrow;
   ui.power.disabled = !canThrow;
-  ui.restart.disabled = !ready;
+  ui.restart.disabled = !(state.localRole === "active" && ready);
 }
 
 ui.createGame.addEventListener("click", () => {
@@ -422,7 +459,7 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (!state.snapshot || state.localSlot === null) {
+  if (!state.snapshot || state.localSlot === null || state.localRole !== "active") {
     return;
   }
 

@@ -16,6 +16,7 @@ const MAX_NAME_LENGTH = 12;
 const MAX_WIND = 0.12;
 const ROOM_CODE_LENGTH = 4;
 const MAX_CHAT_LENGTH = 200;
+const ROOM_CAPACITY = 10;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -203,7 +204,9 @@ function createRoomState() {
     status: "Waiting for two players...",
     roundWinner: null,
     matchWinner: null,
-    nextRoundAt: null
+    nextRoundAt: null,
+    activeSlots: [null, null],
+    queue: []
   };
 }
 
@@ -212,17 +215,80 @@ function createRoom(code) {
     code,
     game: createRoomState(),
     clients: new Map(),
+    participants: new Map(),
+    queue: [],
+    capacity: ROOM_CAPACITY,
     playerNames: Array.from({ length: MAX_PLAYERS }, (_, slot) => defaultPlayerName(slot))
   };
 
   createFreshRound(room, false);
   room.game.phase = "waiting";
-  room.game.status = "Waiting for two players...";
+  room.game.status = "Waiting for players...";
   return room;
 }
 
 function getPlayerName(room, slot) {
   return room.playerNames[slot] || defaultPlayerName(slot);
+}
+
+function getParticipant(room, id) {
+  return id ? room.participants.get(id) || null : null;
+}
+
+function getActiveParticipants(room) {
+  return room.game.activeSlots
+    .map((id) => getParticipant(room, id))
+    .filter(Boolean);
+}
+
+function getSpectators(room) {
+  return [...room.participants.values()].filter((participant) => participant.role === "spectator");
+}
+
+function updateParticipantRoles(room) {
+  const activeIds = room.game.activeSlots.filter(Boolean);
+  for (const participant of room.participants.values()) {
+    const slot = room.game.activeSlots.findIndex((participantId) => participantId === participant.id);
+    participant.role = activeIds.includes(participant.id) ? "active" : "spectator";
+    participant.slot = slot === -1 ? null : slot;
+  }
+}
+
+function syncPlayerNamesFromActiveSlots(room) {
+  room.game.activeSlots.forEach((participantId, slot) => {
+    const participant = getParticipant(room, participantId);
+    room.playerNames[slot] = participant ? participant.name : defaultPlayerName(slot);
+  });
+}
+
+function promoteQueuedParticipant(room) {
+  while (room.queue.length > 0) {
+    const nextId = room.queue.shift();
+    const participant = getParticipant(room, nextId);
+    if (participant) {
+      return participant;
+    }
+  }
+  return null;
+}
+
+function fillActiveSlots(room) {
+  for (let slot = 0; slot < MAX_PLAYERS; slot += 1) {
+    const currentId = room.game.activeSlots[slot];
+    if (currentId && getParticipant(room, currentId)) {
+      continue;
+    }
+
+    const promoted = promoteQueuedParticipant(room);
+    room.game.activeSlots[slot] = promoted ? promoted.id : null;
+  }
+
+  updateParticipantRoles(room);
+  syncPlayerNamesFromActiveSlots(room);
+}
+
+function participantForSlot(room, slot) {
+  return getParticipant(room, room.game.activeSlots[slot]);
 }
 
 function resetAim(game) {
@@ -279,13 +345,23 @@ function serializeState(room) {
     arena: { width: ARENA_WIDTH, height: ARENA_HEIGHT },
     roomCode: room.code,
     players: Array.from({ length: MAX_PLAYERS }, (_, slot) => {
-      const entry = [...room.clients.values()].find((client) => client.slot === slot);
+      const participant = participantForSlot(room, slot);
       return {
         slot,
-        connected: Boolean(entry),
-        name: getPlayerName(room, slot)
+        connected: Boolean(participant),
+        id: participant?.id || null,
+        name: participant?.name || defaultPlayerName(slot)
       };
     }),
+    participants: [...room.participants.values()].map((participant) => ({
+      id: participant.id,
+      name: participant.name,
+      role: participant.role
+    })),
+    queue: room.queue
+      .map((participantId) => getParticipant(room, participantId))
+      .filter(Boolean)
+      .map((participant) => ({ id: participant.id, name: participant.name })),
     game: room.game
   };
 }
@@ -308,37 +384,33 @@ function broadcastState(room) {
 }
 
 function connectedCount(room) {
-  return room.clients.size;
+  return room.participants.size;
 }
 
-function slotAvailable(room, slot) {
-  return ![...room.clients.values()].some((client) => client.slot === slot);
-}
-
-function assignSlot(room) {
-  for (let slot = 0; slot < MAX_PLAYERS; slot += 1) {
-    if (slotAvailable(room, slot)) {
-      return slot;
-    }
-  }
-  return -1;
+function activePlayerCount(room) {
+  return getActiveParticipants(room).length;
 }
 
 function startMatch(room) {
   room.game.activePlayer = Math.random() > 0.5 ? 0 : 1;
   createFreshRound(room, false);
+  room.game.activeSlots = room.game.activeSlots.map((id) => (getParticipant(room, id) ? id : null));
+  syncPlayerNamesFromActiveSlots(room);
   room.game.phase = "aiming";
   room.game.status = `${getPlayerName(room, room.game.activePlayer)}'s turn`;
 }
 
 function maybeStartWhenReady(room) {
-  if (connectedCount(room) === MAX_PLAYERS) {
-    startMatch(room);
+  fillActiveSlots(room);
+
+  if (activePlayerCount(room) === MAX_PLAYERS) {
+    if (room.game.phase === "waiting") {
+      startMatch(room);
+    } else {
+      reconcileGameState(room);
+    }
   } else {
-    room.game.phase = "waiting";
-    room.game.status = "Waiting for two players...";
-    room.game.banana = null;
-    room.game.explosion = null;
+    reconcileGameState(room);
   }
   broadcastState(room);
 }
@@ -392,9 +464,51 @@ function makeExplosion(room, x, y, radius, hitSlot = null) {
   }
 }
 
+function rotateWinnerStaysOn(room, winnerSlot) {
+  if (activePlayerCount(room) < MAX_PLAYERS) {
+    return;
+  }
+
+  const loserSlot = winnerSlot === 0 ? 1 : 0;
+  const winnerId = room.game.activeSlots[winnerSlot];
+  const loserId = room.game.activeSlots[loserSlot];
+
+  if (!winnerId || !loserId) {
+    return;
+  }
+
+  room.queue.push(loserId);
+
+  const nextParticipant = promoteQueuedParticipant(room);
+  room.game.activeSlots[winnerSlot] = winnerId;
+  room.game.activeSlots[loserSlot] = nextParticipant ? nextParticipant.id : loserId;
+
+  updateParticipantRoles(room);
+  syncPlayerNamesFromActiveSlots(room);
+}
+
+function reconcileGameState(room) {
+  fillActiveSlots(room);
+
+  const { game } = room;
+  if (activePlayerCount(room) < MAX_PLAYERS) {
+    game.phase = "waiting";
+    game.banana = null;
+    game.explosion = null;
+    game.status = activePlayerCount(room) === 1 ? "Waiting for one more player..." : "Waiting for players...";
+    return;
+  }
+
+  if (game.activePlayer >= MAX_PLAYERS || !participantForSlot(room, game.activePlayer)) {
+    game.activePlayer = 0;
+  }
+
+  refreshStatusText(room);
+}
+
 function fireBanana(room, slot) {
   const { game } = room;
-  if (game.phase !== "aiming" || game.activePlayer !== slot || connectedCount(room) < MAX_PLAYERS) {
+  if (game.phase !== "aiming" || game.activePlayer !== slot || activePlayerCount(room) < MAX_PLAYERS) {
     return;
   }
 
@@ -509,7 +623,16 @@ function detachClient(ws) {
 
   const client = room.clients.get(ws);
   room.clients.delete(ws);
-  if (room.clients.size === 0) {
+  if (!client) {
+    return { room, client: null };
+  }
+
+  room.participants.delete(client.id);
+  room.queue = room.queue.filter((participantId) => participantId !== client.id);
+  room.game.activeSlots = room.game.activeSlots.map((participantId) => (participantId === client.id ? null : participantId));
+  fillActiveSlots(room);
+
+  if (room.participants.size === 0) {
     rooms.delete(room.code);
   }
 
@@ -522,19 +645,34 @@ function joinRoom(ws, room) {
     return;
   }
 
-  const slot = assignSlot(room);
-  if (slot === -1) {
-    send(ws, "error", { message: `Room ${room.code} is full.` });
+  if (room.participants.size >= room.capacity) {
+    send(ws, "error", { message: `Room ${room.code} is full. Maximum ${room.capacity} players.` });
     return;
   }
 
-  const client = { slot, name: getPlayerName(room, slot) };
+  const participantId = `p_${Math.random().toString(36).slice(2, 10)}`;
+  const activeSlot = room.game.activeSlots.findIndex((id) => id === null);
+  const role = activeSlot !== -1 ? "active" : "spectator";
+  const slot = role === "active" ? activeSlot : null;
+  const defaultName = role === "active" ? getPlayerName(room, slot) : `Spectator ${room.participants.size + 1}`;
+
+  const client = { id: participantId, slot, role, name: defaultName };
   room.clients.set(ws, client);
+  room.participants.set(participantId, client);
   socketMeta.set(ws, { roomCode: room.code });
 
+  if (role === "active") {
+    room.game.activeSlots[slot] = participantId;
+    room.playerNames[slot] = client.name;
+  } else {
+    room.queue.push(participantId);
+  }
+
+  fillActiveSlots(room);
+
   send(ws, "roomJoined", { code: room.code });
-  send(ws, "welcome", { slot, targetScore: MATCH_TARGET, code: room.code });
-  broadcast(room, "toast", { message: `${getPlayerName(room, slot)} connected.` });
+  send(ws, "welcome", { participantId, slot, role, targetScore: MATCH_TARGET, code: room.code });
+  broadcast(room, "toast", { message: `${client.name} connected${role === "spectator" ? " as a spectator" : ""}.` });
   maybeStartWhenReady(room);
 }
 
@@ -608,7 +746,11 @@ function tick() {
     }
 
     if (game.phase === "roundOver" && game.nextRoundAt && Date.now() >= game.nextRoundAt) {
+      if (game.roundWinner !== null && room.queue.length > 0) {
+        rotateWinnerStaysOn(room, game.roundWinner);
+      }
       createFreshRound(room, true);
+      reconcileGameState(room);
     }
 
     broadcastState(room);
@@ -672,7 +814,12 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    const isActivePlayer = client.slot !== null && room.game.activeSlots[client.slot] === client.id;
+
     if (message.type === "aim") {
+      if (!isActivePlayer) {
+        return;
+      }
       const current = room.game.aim[client.slot];
       if (!current) {
         return;
@@ -684,9 +831,12 @@ wss.on("connection", (ws) => {
     }
 
     if (message.type === "setName") {
-      const name = sanitizePlayerName(message.name, client.slot);
+      const fallbackSlot = client.slot ?? 0;
+      const name = sanitizePlayerName(message.name, fallbackSlot);
       client.name = name;
-      room.playerNames[client.slot] = name;
+      if (client.slot !== null) {
+        room.playerNames[client.slot] = name;
+      }
       refreshStatusText(room);
       broadcast(room, "toast", { message: `${name} is ready.` });
       broadcastState(room);
@@ -694,13 +844,16 @@ wss.on("connection", (ws) => {
     }
 
     if (message.type === "throw") {
+      if (!isActivePlayer) {
+        return;
+      }
       fireBanana(room, client.slot);
       broadcastState(room);
       return;
     }
 
     if (message.type === "restart") {
-      if (connectedCount(room) === MAX_PLAYERS) {
+      if (isActivePlayer && activePlayerCount(room) === MAX_PLAYERS) {
         startMatch(room);
         broadcast(room, "toast", { message: "New match started." });
         broadcastState(room);
@@ -720,8 +873,8 @@ wss.on("connection", (ws) => {
     }
 
     const { room, client } = detached;
-    if (room.clients.size > 0) {
-      broadcast(room, "toast", { message: `${getPlayerName(room, client.slot)} disconnected.` });
+    if (room.clients.size > 0 && client) {
+      broadcast(room, "toast", { message: `${client.name} disconnected.` });
       maybeStartWhenReady(room);
     }
   });

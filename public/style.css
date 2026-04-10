@@ -411,6 +411,36 @@ button:disabled {
   margin-bottom: 0;
 }
 
+.roster-block {
+  margin-top: 14px;
+}
+
+.roster-block:first-of-type {
+  margin-top: 0;
+}
+
+.roster-block h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.roster-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+}
+
+.roster-list li {
+  margin-bottom: 6px;
+}
+
+.roster-list li:last-child {
+  margin-bottom: 0;
+}
+
 @media (max-width: 1024px) {
   .game-layout {
     grid-template-columns: 1fr;
