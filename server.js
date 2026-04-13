@@ -853,7 +853,7 @@ wss.on("connection", (ws) => {
     }
 
     if (message.type === "restart") {
-      if (isActivePlayer && activePlayerCount(room) === MAX_PLAYERS) {
+      if (isActivePlayer && activePlayerCount(room) === MAX_PLAYERS && room.game.phase === "matchOver") {
         startMatch(room);
         broadcast(room, "toast", { message: "New match started." });
         broadcastState(room);

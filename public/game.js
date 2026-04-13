@@ -62,7 +62,12 @@ const state = {
 };
 
 function defaultPlayerName(slot) {
-  return `Player ${slot + 1}`;
+  const numericSlot = Number(slot);
+  return Number.isFinite(numericSlot) ? `Player ${numericSlot + 1}` : "Player";
+}
+
+function defaultSpectatorName() {
+  return "Spectator";
 }
 
 function sanitizePlayerName(value, slot) {
@@ -119,13 +124,16 @@ function updateRoomUi() {
 }
 
 function updateNameModal() {
-  const shouldShow = state.roomCode && state.localRole === "active" && state.localSlot !== null && !state.nameSubmitted;
+  const joined = Boolean(state.roomCode) && Boolean(state.localParticipantId);
+  const shouldShow = joined && !state.nameSubmitted;
   ui.nameModal.classList.toggle("visible", shouldShow);
   if (!shouldShow) {
     return;
   }
 
-  ui.nameInput.placeholder = defaultPlayerName(state.localSlot);
+  ui.nameInput.placeholder = state.localRole === "active"
+    ? defaultPlayerName(state.localSlot)
+    : defaultSpectatorName();
 }
 
 function setToast(message) {
@@ -252,12 +260,12 @@ socket.addEventListener("message", (event) => {
 
   if (message.type === "welcome") {
     state.localParticipantId = message.participantId || null;
-    state.localSlot = message.slot;
+    state.localSlot = message.slot ?? null;
     state.localRole = message.role || (message.slot !== null ? "active" : "spectator");
     state.targetScore = message.targetScore;
     state.roomCode = message.code || state.roomCode;
     ui.playerSlot.textContent = state.localRole === "active"
-      ? `You are ${defaultPlayerName(message.slot)}`
+      ? `You are ${defaultPlayerName(state.localSlot)}`
       : "You are spectating";
     updateRoomUi();
     updateNameModal();
@@ -362,6 +370,7 @@ function updateHud() {
   const myTurn = state.localRole === "active" && state.localSlot === game.activePlayer;
   const ready = players.every((player) => player.connected);
   const canThrow = ready && myTurn && game.phase === "aiming" && state.nameSubmitted;
+  const canRestart = state.localRole === "active" && ready && game.phase === "matchOver" && state.nameSubmitted;
 
   if (state.localRole === "active" && state.localSlot !== null) {
     ui.playerSlot.textContent = `You are ${getPlayerName(state.localSlot)}`;
@@ -372,7 +381,7 @@ function updateHud() {
   ui.throw.disabled = !canThrow;
   ui.angle.disabled = !canThrow;
   ui.power.disabled = !canThrow;
-  ui.restart.disabled = !(state.localRole === "active" && ready);
+  ui.restart.disabled = !canRestart;
 }
 
 ui.createGame.addEventListener("click", () => {
@@ -432,11 +441,8 @@ ui.restart.addEventListener("click", () => {
 
 ui.nameForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (state.localSlot === null) {
-    return;
-  }
-
-  const name = sanitizePlayerName(ui.nameInput.value, state.localSlot);
+  const fallbackSlot = state.localSlot ?? 0;
+  const name = sanitizePlayerName(ui.nameInput.value, fallbackSlot);
   ui.nameInput.value = name;
   state.nameSubmitted = true;
   updateNameModal();
