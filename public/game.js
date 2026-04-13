@@ -367,8 +367,9 @@ function updateHud() {
 
   const myTurn = state.localRole === "active" && state.localSlot === game.activePlayer;
   const ready = players.every((player) => player.connected);
-  const canThrow = ready && myTurn && game.phase === "aiming";
-  const canRestart = state.localRole === "active" && ready && game.phase === "matchOver";
+  const isActivePlayer = state.localRole === "active" && state.localSlot !== null;
+  const canThrow = ready && isActivePlayer && myTurn && game.phase === "aiming";
+  const canRestart = isActivePlayer && ready && game.phase === "matchOver";
 
   if (state.localRole === "active" && localParticipant) {
     ui.playerSlot.textContent = `You are ${localParticipant.name}`;
@@ -469,8 +470,7 @@ window.addEventListener("keydown", (event) => {
 
   const canAdjust =
     state.snapshot.game.phase === "aiming" &&
-    state.snapshot.game.activePlayer === state.localSlot &&
-    state.nameSubmitted;
+    state.snapshot.game.activePlayer === state.localSlot;
 
   if (!canAdjust) {
     return;
