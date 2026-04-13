@@ -356,7 +356,8 @@ function serializeState(room) {
     participants: [...room.participants.values()].map((participant) => ({
       id: participant.id,
       name: participant.name,
-      role: participant.role
+      role: participant.role,
+      slot: participant.slot
     })),
     queue: room.queue
       .map((participantId) => getParticipant(room, participantId))

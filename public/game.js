@@ -362,7 +362,7 @@ function updateHud() {
 
   if (localParticipant) {
     state.localRole = localParticipant.role;
-    state.localSlot = localParticipant.slot;
+    state.localSlot = localParticipant.slot ?? null;
   }
 
   const myTurn = state.localRole === "active" && state.localSlot === game.activePlayer;
