@@ -267,6 +267,7 @@ socket.addEventListener("message", (event) => {
     ui.playerSlot.textContent = state.localRole === "active"
       ? `You are ${defaultPlayerName(state.localSlot)}`
       : "You are spectating";
+    state.nameSubmitted = false;
     updateRoomUi();
     updateNameModal();
     requestAnimationFrame(() => {
@@ -295,9 +296,6 @@ socket.addEventListener("message", (event) => {
   if (message.type === "state") {
     state.snapshot = message.state;
     state.roomCode = message.state.roomCode || state.roomCode;
-    if (state.localSlot !== null) {
-      ui.playerSlot.textContent = `You are ${getPlayerName(state.localSlot)}`;
-    }
     updateRoomUi();
     syncControls();
     updateHud();
@@ -369,11 +367,11 @@ function updateHud() {
 
   const myTurn = state.localRole === "active" && state.localSlot === game.activePlayer;
   const ready = players.every((player) => player.connected);
-  const canThrow = ready && myTurn && game.phase === "aiming" && state.nameSubmitted;
-  const canRestart = state.localRole === "active" && ready && game.phase === "matchOver" && state.nameSubmitted;
+  const canThrow = ready && myTurn && game.phase === "aiming";
+  const canRestart = state.localRole === "active" && ready && game.phase === "matchOver";
 
-  if (state.localRole === "active" && state.localSlot !== null) {
-    ui.playerSlot.textContent = `You are ${getPlayerName(state.localSlot)}`;
+  if (state.localRole === "active" && localParticipant) {
+    ui.playerSlot.textContent = `You are ${localParticipant.name}`;
   } else {
     ui.playerSlot.textContent = "You are spectating";
   }
