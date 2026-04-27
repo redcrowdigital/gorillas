@@ -5,64 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gorillas</title>
     <link rel="stylesheet" href="/style.css" />
-    <style>
-      .canvas-panel {
-        position: relative;
-      }
-
-      .name-modal {
-        position: absolute;
-        inset: 0;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        padding: 24px;
-        background: rgba(4, 6, 12, 0.78);
-        z-index: 2;
-      }
-
-      .name-modal.visible {
-        display: flex;
-      }
-
-      .name-dialog {
-        width: min(360px, 100%);
-        padding: 20px;
-        border: 2px solid #2f3d61;
-        background: linear-gradient(180deg, rgba(18, 21, 35, 0.98), rgba(8, 10, 18, 0.98));
-        box-shadow:
-          0 18px 36px rgba(0, 0, 0, 0.42),
-          inset 0 0 0 1px rgba(255, 255, 255, 0.03);
-      }
-
-      .name-dialog h2 {
-        margin: 0 0 14px;
-        color: #ffd27a;
-        font-size: 1rem;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-      }
-
-      .name-dialog p {
-        margin: 0 0 12px;
-        color: #93a0c4;
-        line-height: 1.45;
-      }
-
-      .name-dialog input {
-        width: 100%;
-        margin: 0 0 12px;
-        padding: 12px 14px;
-        border: 2px solid #2f3d61;
-        background: #0d1120;
-        color: #f0e6c8;
-        font: inherit;
-      }
-
-      .name-dialog button {
-        margin-bottom: 0;
-      }
-    </style>
   </head>
   <body>
     <div class="shell">

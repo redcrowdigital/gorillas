@@ -45,6 +45,7 @@ const ui = {
 
 const MAX_NAME_LENGTH = 12;
 const MAX_WIND = 0.12;
+const EXPECTED_PROTOCOL_VERSION = 1;
 
 const state = {
   localParticipantId: null,
@@ -294,6 +295,9 @@ socket.addEventListener("message", (event) => {
   }
 
   if (message.type === "state") {
+    if (message.state.protocolVersion !== EXPECTED_PROTOCOL_VERSION) {
+      setToast("Server protocol changed. Refresh the page.");
+    }
     state.snapshot = message.state;
     state.roomCode = message.state.roomCode || state.roomCode;
     updateRoomUi();

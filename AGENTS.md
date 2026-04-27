@@ -20,15 +20,28 @@ npm start
 
 The server listens on `http://localhost:3001` by default. Open the URL in two browser windows or devices to play.
 
+Useful local checks:
+
+```bash
+npm run check
+npm test
+```
+
 Production deployments can bind to localhost behind a reverse proxy:
 
 ```bash
-HOST=127.0.0.1 node server.js
+HOST=127.0.0.1 PORT=3001 node server.js
 ```
+
+The health endpoint is `GET /healthz`.
 
 ## File Map
 
-- `server.js`: Static file server, WebSocket server, room management, authoritative game simulation, scoring, chat, spectator queue, and state serialization.
+- `server.js`: WebSocket routing, room registry, heartbeat, rate limiting, and tick loop.
+- `lib/config.js`: Runtime constants and environment-derived `HOST`/`PORT`.
+- `lib/game-state.js`: Room management, authoritative game simulation, scoring, spectator queue, and state serialization.
+- `lib/protocol.js`: Protocol version, sanitizers, formatting, and WebSocket send/broadcast helpers.
+- `lib/static-server.js`: Static asset handling and `/healthz`.
 - `public/index.html`: Lobby, room UI, game canvas, controls, chat, rosters, invite UI, and name modal.
 - `public/game.js`: Browser client. Handles WebSocket messages, lobby flow, input controls, chat UI, HUD updates, and canvas rendering.
 - `public/style.css`: Retro dark visual styling and responsive layout.
@@ -36,6 +49,7 @@ HOST=127.0.0.1 node server.js
 - `README.md`: User-facing overview, run instructions, deployment examples, and controls.
 - `DEPLOY.md`: Generic self-hosting notes for Node 18+ behind a reverse proxy.
 - `deploy/`: Optional AWS Lightsail, Caddy, and PM2 provisioning/update/teardown scripts.
+- `test/`: Node test suite for protocol sanitization and core room/game state behavior.
 
 ## Runtime Architecture
 
@@ -48,8 +62,10 @@ Important server concepts:
 - Extra participants are spectators and are tracked in a queue.
 - After a scored round, if spectators are waiting, the winner stays active and the loser moves to the queue.
 - The game target is first to 3 points.
-- Projectile physics, wind, collision, explosions, destructible terrain, and scoring happen in `server.js`.
-- The game loop runs at 60 FPS via `setInterval(tick, TICK_MS)` and broadcasts state every tick.
+- Projectile physics, wind, collision, explosions, destructible terrain, and scoring happen in `lib/game-state.js`.
+- The game loop runs at 60 FPS via `setInterval(tick, TICK_MS)`.
+- State broadcasts are immediate for state changes and throttled during projectile/explosion motion.
+- WebSocket clients are checked with ping/pong heartbeat and message rate limiting.
 
 The browser is mostly a renderer and UI controller:
 
@@ -84,11 +100,11 @@ Server to client:
 
 - Keep multiplayer authority in `server.js`; do not trust browser state for gameplay outcomes.
 - Sanitize user-controlled values. Existing helpers cover names, room codes, chat text, numeric aim values, and clamping.
-- When changing state shape in `serializeState`, update `public/game.js` consumers at the same time.
+- When changing state shape in `serializeState`, bump/review `PROTOCOL_VERSION` in `lib/protocol.js` and update `public/game.js` consumers at the same time.
 - Canvas drawing in `public/game.js` assumes the arena dimensions sent by the server are compatible with the fixed canvas size in `index.html`.
 - The static file server normalizes request paths and blocks traversal outside `public/`.
 - The codebase uses CommonJS on the server and plain browser globals on the frontend.
-- There are currently no automated tests or lint scripts in `package.json`.
+- Keep `npm run check` and `npm test` passing after changes.
 
 ## Deployment Notes
 
