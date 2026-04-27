@@ -32,6 +32,9 @@ const ui = {
   score2Label: document.querySelector('.scorecard[data-player="2"] .label'),
   wind: document.getElementById("wind"),
   turn: document.getElementById("turn"),
+  activeRoster: document.getElementById("active-roster"),
+  spectatorRoster: document.getElementById("spectator-roster"),
+  queueRoster: document.getElementById("queue-roster"),
   nameModal: document.getElementById("name-modal"),
   nameForm: document.getElementById("name-form"),
   nameInput: document.getElementById("name-input"),
@@ -42,9 +45,12 @@ const ui = {
 
 const MAX_NAME_LENGTH = 12;
 const MAX_WIND = 0.12;
+const EXPECTED_PROTOCOL_VERSION = 1;
 
 const state = {
+  localParticipantId: null,
   localSlot: null,
+  localRole: null,
   targetScore: 3,
   snapshot: null,
   connected: false,
@@ -57,7 +63,12 @@ const state = {
 };
 
 function defaultPlayerName(slot) {
-  return `Player ${slot + 1}`;
+  const numericSlot = Number(slot);
+  return Number.isFinite(numericSlot) ? `Player ${numericSlot + 1}` : "Player";
+}
+
+function defaultSpectatorName() {
+  return "Spectator";
 }
 
 function sanitizePlayerName(value, slot) {
@@ -114,13 +125,16 @@ function updateRoomUi() {
 }
 
 function updateNameModal() {
-  const shouldShow = state.roomCode && state.localSlot !== null && !state.nameSubmitted;
+  const joined = Boolean(state.roomCode) && Boolean(state.localParticipantId);
+  const shouldShow = joined && !state.nameSubmitted;
   ui.nameModal.classList.toggle("visible", shouldShow);
   if (!shouldShow) {
     return;
   }
 
-  ui.nameInput.placeholder = defaultPlayerName(state.localSlot);
+  ui.nameInput.placeholder = state.localRole === "active"
+    ? defaultPlayerName(state.localSlot)
+    : defaultSpectatorName();
 }
 
 function setToast(message) {
@@ -246,10 +260,15 @@ socket.addEventListener("message", (event) => {
   }
 
   if (message.type === "welcome") {
-    state.localSlot = message.slot;
+    state.localParticipantId = message.participantId || null;
+    state.localSlot = message.slot ?? null;
+    state.localRole = message.role || (message.slot !== null ? "active" : "spectator");
     state.targetScore = message.targetScore;
     state.roomCode = message.code || state.roomCode;
-    ui.playerSlot.textContent = `You are ${defaultPlayerName(message.slot)}`;
+    ui.playerSlot.textContent = state.localRole === "active"
+      ? `You are ${defaultPlayerName(state.localSlot)}`
+      : "You are spectating";
+    state.nameSubmitted = false;
     updateRoomUi();
     updateNameModal();
     requestAnimationFrame(() => {
@@ -276,11 +295,11 @@ socket.addEventListener("message", (event) => {
   }
 
   if (message.type === "state") {
+    if (message.state.protocolVersion !== EXPECTED_PROTOCOL_VERSION) {
+      setToast("Server protocol changed. Refresh the page.");
+    }
     state.snapshot = message.state;
     state.roomCode = message.state.roomCode || state.roomCode;
-    if (state.localSlot !== null) {
-      ui.playerSlot.textContent = `You are ${getPlayerName(state.localSlot)}`;
-    }
     updateRoomUi();
     syncControls();
     updateHud();
@@ -296,7 +315,7 @@ function send(type, payload = {}) {
 }
 
 function syncControls() {
-  if (!state.snapshot || state.localSlot === null) {
+  if (!state.snapshot || state.localSlot === null || state.localRole !== "active") {
     return;
   }
   const aim = state.snapshot.game.aim[state.localSlot];
@@ -314,12 +333,22 @@ function syncControls() {
   ui.powerValue.textContent = ui.power.value;
 }
 
+function renderRoster(list, entries, ordered = false) {
+  list.textContent = "";
+  const items = entries.length ? entries : [{ name: ordered ? "Nobody waiting" : "None" }];
+  items.forEach((entry) => {
+    const item = document.createElement("li");
+    item.textContent = entry.name;
+    list.appendChild(item);
+  });
+}
+
 function updateHud() {
   if (!state.snapshot) {
     return;
   }
 
-  const { game, players } = state.snapshot;
+  const { game, players, participants = [], queue = [] } = state.snapshot;
   ui.status.textContent = game.status;
   ui.score1.textContent = game.scores[0];
   ui.score2.textContent = game.scores[1];
@@ -328,14 +357,35 @@ function updateHud() {
   ui.wind.textContent = formatWindText(game.wind);
   ui.turn.textContent = game.phase === "waiting" ? "-" : getPlayerName(game.activePlayer);
 
-  const myTurn = state.localSlot === game.activePlayer;
+  const activeParticipants = participants.filter((participant) => participant.role === "active");
+  const spectatorParticipants = participants.filter((participant) => participant.role === "spectator");
+  const localParticipant = participants.find((participant) => participant.id === state.localParticipantId) || null;
+  renderRoster(ui.activeRoster, activeParticipants);
+  renderRoster(ui.spectatorRoster, spectatorParticipants);
+  renderRoster(ui.queueRoster, queue, true);
+
+  if (localParticipant) {
+    state.localRole = localParticipant.role;
+    state.localSlot = localParticipant.slot ?? null;
+  }
+
+  const myTurn = state.localRole === "active" && state.localSlot === game.activePlayer;
   const ready = players.every((player) => player.connected);
-  const canThrow = ready && myTurn && game.phase === "aiming" && state.nameSubmitted;
+  const isActivePlayer = state.localRole === "active" && state.localSlot !== null;
+  const nameLockedIn = !ui.nameModal.classList.contains("visible") && state.nameSubmitted;
+  const canThrow = ready && isActivePlayer && myTurn && game.phase === "aiming" && nameLockedIn;
+  const canRestart = isActivePlayer && ready && game.phase === "matchOver" && nameLockedIn;
+
+  if (state.localRole === "active" && localParticipant) {
+    ui.playerSlot.textContent = `You are ${localParticipant.name}`;
+  } else {
+    ui.playerSlot.textContent = "You are spectating";
+  }
 
   ui.throw.disabled = !canThrow;
   ui.angle.disabled = !canThrow;
   ui.power.disabled = !canThrow;
-  ui.restart.disabled = !ready;
+  ui.restart.disabled = !canRestart;
 }
 
 ui.createGame.addEventListener("click", () => {
@@ -395,11 +445,8 @@ ui.restart.addEventListener("click", () => {
 
 ui.nameForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (state.localSlot === null) {
-    return;
-  }
-
-  const name = sanitizePlayerName(ui.nameInput.value, state.localSlot);
+  const fallbackSlot = state.localSlot ?? 0;
+  const name = sanitizePlayerName(ui.nameInput.value, fallbackSlot);
   ui.nameInput.value = name;
   state.nameSubmitted = true;
   updateNameModal();
@@ -422,13 +469,14 @@ window.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (!state.snapshot || state.localSlot === null) {
+  if (!state.snapshot || state.localSlot === null || state.localRole !== "active") {
     return;
   }
 
   const canAdjust =
     state.snapshot.game.phase === "aiming" &&
     state.snapshot.game.activePlayer === state.localSlot &&
+    !ui.nameModal.classList.contains("visible") &&
     state.nameSubmitted;
 
   if (!canAdjust) {

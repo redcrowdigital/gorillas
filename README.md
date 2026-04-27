@@ -9,7 +9,8 @@ Retro two-player LAN Gorillas built with vanilla JavaScript, HTML5 canvas, Node.
 - Wind and gravity affecting every shot
 - Score tracking, first player to 3 wins
 - Retro dark pixel-style presentation
-- Single server serving both static files and WebSocket game state
+- Single server serving static files and authoritative WebSocket game state
+- Room codes, spectators, chat, queue rotation, heartbeat cleanup, and basic message throttling
 
 ## Run
 
@@ -19,6 +20,25 @@ npm start
 ```
 
 Open `http://localhost:3001` in two browsers or on two devices on the same LAN.
+
+Use a custom host or port when needed:
+
+```bash
+HOST=127.0.0.1 PORT=3002 npm start
+```
+
+Health check:
+
+```bash
+curl http://localhost:3001/healthz
+```
+
+## Development
+
+```bash
+npm run check
+npm test
+```
 
 ## Deploy
 

@@ -23,9 +23,10 @@ HOST=127.0.0.1 node server.js
 ```
 
 The server needs:
-- **Port 3001** (configurable in server.js)
+- **Port 3001 by default** (override with `PORT=...`)
 - **WebSocket support** in your reverse proxy
 - **Node.js 18+**
+- **Health check:** `GET /healthz`
 
 Example Caddy config:
 
